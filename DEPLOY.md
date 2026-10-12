@@ -50,3 +50,7 @@ A serverless function cannot keep a file database. Without `DATABASE_URL` the ap
 cd frontend; npm ci; npm run build      # must succeed
 cd ../backend; .venv\Scripts\python.exe manage.py test
 ```
+
+## Troubleshooting the build
+
+**"Failed to read Django application settings ... No module named django"**: Vercel found `backend/manage.py` and tried to import Django before the Python packages were installed. The repo avoids this three ways: `"framework": null` in `vercel.json`, `backend/manage.py` listed in `.vercelignore`, and the install step also runs `pip install -r requirements.txt`. If it still appears, open the failing deployment, copy the lines above that error (the dependency install output) and check that the Python version is 3.12.

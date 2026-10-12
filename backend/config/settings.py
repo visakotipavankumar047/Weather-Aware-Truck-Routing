@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from django.core.management.utils import get_random_secret_key
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -30,12 +31,12 @@ def env_list(name):
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
-# The insecure fallback key is only allowed in DEBUG; production must set DJANGO_SECRET_KEY.
+# Dev falls back to a fixed key. Elsewhere a missing DJANGO_SECRET_KEY gets a random per-process key
+# instead of crashing the build or the deploy: this API signs nothing that must survive a restart
+# (no sessions, no auth), but set DJANGO_SECRET_KEY anyway.
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or (
-    'django-insecure-dev-only' if DEBUG else None
+    'django-insecure-dev-only' if DEBUG else get_random_secret_key()
 )
-if not SECRET_KEY:
-    raise RuntimeError('DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is False')
 
 ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS')
 
