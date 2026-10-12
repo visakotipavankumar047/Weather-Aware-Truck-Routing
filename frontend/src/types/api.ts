@@ -107,3 +107,13 @@ export interface TripTraffic {
   offset_hours: number
   routes: RouteTraffic[]
 }
+
+export interface SweepOffset {
+  offset_hours: number
+  recommended_route_id: number | null
+  routes: RouteSummary[]
+}
+
+export interface ForecastSweep {
+  offsets: SweepOffset[]
+}

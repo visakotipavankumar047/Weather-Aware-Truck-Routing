@@ -329,3 +329,15 @@ Without `TOMTOM_API_KEY` the endpoint returns `enabled: false` and no routes. Re
 3. **Map-provider guide** (needs `TOMTOM_API_KEY`): TomTom suggests alternative roads; each is re-planned through OpenRouteService via points taken from it, so every route shares one vehicle profile and one timing model.
 
 A candidate is kept only if it follows different roads from every route already chosen (mean polyline distance of at least 0.75 mi). Each route stores a `label` saying how it was found ("", "Shortest", "Avoids highways", "Alternative 1"). A failing variant never breaks a trip. Verified live: Denver to Colorado Springs, Dallas to Houston and Los Angeles to New York each return three routes.
+
+## Stateless endpoints (used by the web app)
+
+Because a serverless database may be a throw-away file, these endpoints take the routes in the request body (as returned by `POST /api/trips/`) and read no stored state.
+
+| Method | Route | Body | Returns |
+|---|---|---|---|
+| POST | `/api/forecast/` | `load_weight_lb`, `offset_hours` (0-48), `routes[{id, distance_miles, duration_minutes, checkpoints[{sequence, distance_miles, lat, lon, eta}]}]` | same shape as `GET /api/trips/{id}/forecast/` |
+| POST | `/api/forecast/sweep/` | `load_weight_lb`, `offsets[]`, `routes[...]` | `{offsets: [{offset_hours, recommended_route_id, routes[{id, rank, eligible, distance_miles, duration_minutes, risk_summary}]}]}`, summaries only, with one weather fetch for all offsets |
+| POST | `/api/traffic/routes/` | `origin`, `destination`, `departure_at`, `offset_hours`, `routes[{id, geometry[[lat, lon]]}]` (at most 400 points each) | same shape as `GET /api/trips/{id}/traffic/` |
+
+Validation: timestamps must carry a timezone, at most 5 routes, at most 1,500 checkpoints per route, offsets 0-48. Ranking and risk use exactly the same code as the stored-trip endpoints (`services.rescore`).

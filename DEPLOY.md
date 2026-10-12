@@ -33,18 +33,18 @@ One deployment serves both: Vercel builds the React app to static files and runs
 
 4. Click **Deploy**. Open the URL; the status in the sidebar should read "Connected". `https://<your-app>.vercel.app/api/docs/` shows the API documentation.
 
-## The database (important)
+## The database (SQLite is fine)
 
-A serverless function has no persistent disk, so **the app needs a Postgres database** to keep trips. Without one it falls back to SQLite in `/tmp`, which is wiped whenever Vercel starts another instance: you would see saved trips return 404 and the sidebar shows a "trips not saved" warning.
+You do not need Neon or any hosted database. Without `DATABASE_URL` the backend uses Django's built-in SQLite, stored in `/tmp` on Vercel. That file is temporary and each serverless instance has its own, so the app is built not to depend on it:
 
-Quickest setup:
+- `POST /api/trips/` analyses the trip and returns everything (routes, geometry, checkpoints, weather). The browser keeps that copy in `localStorage`, so saved trips reopen from the browser even after the server restarts.
+- The forecast slider, the heat strip and traffic use **stateless endpoints**: `POST /api/forecast/`, `POST /api/forecast/sweep/` and `POST /api/traffic/routes/`. The request carries the routes, so any server instance can answer and a missing server-side trip is never a problem.
+- "Refresh forecast" runs a new analysis from the stored inputs and replaces the saved entry.
+- The server still writes each analysis to SQLite (useful locally and in `/admin/`), and the old `GET /api/trips/{id}/...` routes work whenever the same instance still has it. The app does not rely on them.
 
-1. In the Vercel project open **Storage** (or Marketplace), add **Neon** (or Supabase) Postgres and connect it to this project.
-2. The integration injects `DATABASE_URL` / `POSTGRES_URL` automatically. The app reads either one, including `?sslmode=require`.
-3. Redeploy. On the first request after each deploy the function creates the tables and the shared cache table; nothing to run by hand.
-4. Check `https://<your-app>.vercel.app/api/health/`: it should show `"database": "postgresql"` and `"persistent": true`.
+Saved trips are therefore **per browser**: another browser or device will not see them. If you later want trips shared across devices, set `DATABASE_URL` to a Postgres database; the code already supports it and the stateless endpoints keep working.
 
-The same database also backs a **shared cache** for geocoding, forecasts and traffic. On serverless each request may land on a new instance with an empty memory cache; without a shared cache every instance would call Open-Meteo again, and the provider's per-IP limit (HTTP 429, reported as 503) would break the forecast slider. Optionally set `OPEN_METEO_API_KEY` (Open-Meteo customer plan) if you expect heavy traffic.
+Forecast and geocoding responses are cached in memory per instance. If a provider answers 429 under heavy use, set `OPEN_METEO_API_KEY` or `DATABASE_URL` (which also enables a shared cache).
 
 ## Limits to know
 

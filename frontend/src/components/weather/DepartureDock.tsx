@@ -13,13 +13,12 @@ interface Props {
   baseRoute: Route | null // stored offset-0 analysis of the selected route
   loading: boolean
   stale: boolean
-  version: string
 }
 
 const TICKS = [0, 12, 24, 36, 48]
 const CELL_W = 100 / (STRIP_OFFSETS.length + 1) // 17 cells tile the track exactly
 
-export function DepartureDock({ trip, offset, onOffset, selectedRouteId, baseRoute, loading, stale, version }: Props) {
+export function DepartureDock({ trip, offset, onOffset, selectedRouteId, baseRoute, loading, stale }: Props) {
   const [local, setLocal] = useState(offset)
   const debounced = useDebounced(local, 250)
   const committed = useRef(offset)
@@ -38,7 +37,7 @@ export function DepartureDock({ trip, offset, onOffset, selectedRouteId, baseRou
     }
   }, [offset])
 
-  const strip = useForecastStrip(trip.trip_id, version)
+  const strip = useForecastStrip(trip)
   const cells = [
     { offset: 0, summary: baseRoute?.risk_summary ?? null },
     ...strip.map(({ offset: o, data }) => ({

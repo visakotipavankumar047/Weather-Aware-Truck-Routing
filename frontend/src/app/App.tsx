@@ -12,6 +12,7 @@ import { ApiError } from '../services/apiClient'
 import { useTrafficStatus } from '../services/traffic'
 import type { Trip, TripRequest } from '../types/api'
 import { dateTime } from '../utils/formatters'
+import { removeTrip } from '../utils/tripStore'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -54,6 +55,7 @@ function Workspace() {
   const [lastRequest, setLastRequest] = useState<TripRequest | null>(null)
 
   const forget = useCallback((id: string) => {
+    removeTrip(id)
     setRecent((r) => {
       const next = r.filter((t) => t.id !== id)
       write(RECENT_KEY, next)
@@ -79,13 +81,23 @@ function Workspace() {
       return next
     })
   })
-  const reanalyze = useReanalyze()
+  const reanalyze = useReanalyze((oldId, t) => {
+    // the refreshed analysis replaces the old one in the saved list and becomes the open trip
+    removeTrip(oldId)
+    setRecent((r) => {
+      const entry = { id: t.trip_id, title: `${short(t.origin_label)} to ${short(t.destination_label)}`, at: t.created_at }
+      const next = [entry, ...r.filter((x) => x.id !== oldId && x.id !== t.trip_id)].slice(0, 6)
+      write(RECENT_KEY, next)
+      return next
+    })
+    open(t.trip_id)
+  })
   const tripQuery = useTrip(tripId)
   const trip = tripQuery.data
   const view = useTripView(trip, offset)
   const trafficStatus = useTrafficStatus()
   const trafficAvailable = !!trafficStatus.data?.enabled
-  const traffic = useTripTraffic(trip?.trip_id ?? null, offset, trafficAvailable && trafficOn)
+  const traffic = useTripTraffic(trip, offset, trafficAvailable && trafficOn)
 
   const routes = view.routes
   const selectedId = routes.some((r) => r.id === routeId)
@@ -155,7 +167,7 @@ function Workspace() {
                     </span>
                     <button
                       type="button"
-                      onClick={() => reanalyze.mutate(trip.trip_id)}
+                      onClick={() => reanalyze.mutate(trip)}
                       disabled={reanalyze.isPending}
                       className="inline-flex items-center gap-1.5 font-medium text-accent hover:underline disabled:opacity-60"
                       title="Re-fetch routes and the latest forecast, and save the new analysis"
@@ -170,7 +182,7 @@ function Workspace() {
 
           {reanalyze.error && trip && (
             <div className="px-4 pb-4">
-              <ApiErrorState error={reanalyze.error} onRetry={() => reanalyze.mutate(trip.trip_id)} compact />
+              <ApiErrorState error={reanalyze.error} onRetry={() => reanalyze.mutate(trip)} compact />
             </div>
           )}
 
@@ -289,7 +301,6 @@ function Workspace() {
             baseRoute={baseRoute}
             loading={view.loading}
             stale={view.stale}
-            version={trip.routes.map((r) => r.id).join('-')}
           />
         </div>
       ) : (

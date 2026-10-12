@@ -1,18 +1,26 @@
-import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo } from 'react'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { ApiError } from '../services/apiClient'
-import { createTrip, fetchTrip, getForecast, getTraffic, reanalyzeTrip } from '../services/trips'
-import type { Forecast, Route, Trip } from '../types/api'
+import {
+  createTrip,
+  fetchTrip,
+  getForecast,
+  getForecastSweep,
+  getTraffic,
+  requestFromTrip,
+} from '../services/trips'
+import type { Route, RouteSummary, Trip } from '../types/api'
+import { loadTrip, removeTrip, saveTrip } from '../utils/tripStore'
 
 export const STRIP_OFFSETS = Array.from({ length: 16 }, (_, i) => (i + 1) * 3) // +3h .. +48h
 
 const retryTransient = (count: number, e: unknown) => count < 1 && e instanceof ApiError && e.retryable
 
-/** A saved trip, rebuilt from the database. Freshly created trips are seeded into this cache. */
+/** A saved trip: this browser's copy first, the server only as a fallback. */
 export function useTrip(id: string | null) {
   return useQuery({
     queryKey: ['trip', id],
-    queryFn: () => fetchTrip(id as string),
+    queryFn: async () => loadTrip(id as string) ?? (await fetchTrip(id as string)),
     enabled: !!id,
     staleTime: Infinity,
     retry: retryTransient,
@@ -24,29 +32,37 @@ export function useCreateTrip(onCreated: (t: Trip) => void) {
   return useMutation({
     mutationFn: createTrip,
     onSuccess: (trip) => {
+      saveTrip(trip)
       qc.setQueryData(['trip', trip.trip_id], trip)
       onCreated(trip)
     },
   })
 }
 
-export function useReanalyze() {
+/** Analyse the same inputs again with the latest forecast. Produces a new trip id; the old copy is
+ *  dropped. (Done as a fresh analysis so it works no matter which server instance answers.) */
+export function useReanalyze(onDone: (oldId: string, t: Trip) => void) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: reanalyzeTrip,
-    onSuccess: (trip) => {
-      qc.removeQueries({ queryKey: ['forecast', trip.trip_id] }) // route ids and weather changed
+    mutationFn: (trip: Trip) => createTrip(requestFromTrip(trip)),
+    onSuccess: (trip, old) => {
+      saveTrip(trip)
       qc.setQueryData(['trip', trip.trip_id], trip)
+      qc.removeQueries({ queryKey: ['forecast', old.trip_id] })
+      qc.removeQueries({ queryKey: ['sweep', old.trip_id] })
+      qc.removeQueries({ queryKey: ['traffic', old.trip_id] })
+      removeTrip(old.trip_id)
+      onDone(old.trip_id, trip)
     },
   })
 }
 
-export function useForecast(id: string | null, offset: number) {
+export function useForecast(trip: Trip | undefined, offset: number) {
   return useQuery({
-    queryKey: ['forecast', id, offset],
-    queryFn: () => getForecast(id as string, offset),
-    enabled: !!id && offset > 0,
-    staleTime: 5 * 60 * 1000,
+    queryKey: ['forecast', trip?.trip_id, offset],
+    queryFn: () => getForecast(trip as Trip, offset),
+    enabled: !!trip && offset > 0,
+    staleTime: 10 * 60 * 1000,
     placeholderData: keepPreviousData,
     retry: retryTransient,
   })
@@ -54,7 +70,7 @@ export function useForecast(id: string | null, offset: number) {
 
 /** The trip as it looks at the selected forecast offset (geometry from the trip, risk from the forecast). */
 export function useTripView(trip: Trip | undefined, offset: number) {
-  const forecast = useForecast(trip?.trip_id ?? null, offset)
+  const forecast = useForecast(trip, offset)
   const data = offset > 0 ? forecast.data : undefined
   const routes: Route[] = useMemo(() => {
     if (!trip) return []
@@ -78,48 +94,29 @@ export function useTripView(trip: Trip | undefined, offset: number) {
   }
 }
 
-/** Per-offset route summaries for the heat strip; filled in gradually by a sequential prefetch. */
-export function useForecastStrip(tripId: string | null, version: string) {
-  const qc = useQueryClient()
-  useEffect(() => {
-    if (!tripId) return
-    let cancelled = false
-    ;(async () => {
-      for (const offset of STRIP_OFFSETS) {
-        if (cancelled) return
-        const queryKey = ['forecast', tripId, offset]
-        await qc.prefetchQuery({
-          queryKey,
-          queryFn: () => getForecast(tripId, offset),
-          staleTime: 5 * 60 * 1000,
-        })
-        // prefetchQuery never throws; stop the sweep on the first failure instead of retrying 16 times
-        if (qc.getQueryState(queryKey)?.status === 'error') return
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [qc, tripId, version])
-
-  const results = useQueries({
-    queries: STRIP_OFFSETS.map((offset) => ({
-      queryKey: ['forecast', tripId, offset],
-      queryFn: () => getForecast(tripId as string, offset),
-      enabled: false,
-      staleTime: 5 * 60 * 1000,
-    })),
+/** Per-offset route summaries for the heat strip, fetched in ONE request. */
+export function useForecastStrip(trip: Trip | undefined) {
+  const q = useQuery({
+    queryKey: ['sweep', trip?.trip_id],
+    queryFn: () => getForecastSweep(trip as Trip, [0, ...STRIP_OFFSETS]),
+    enabled: !!trip,
+    staleTime: 10 * 60 * 1000,
+    retry: retryTransient,
   })
-  return STRIP_OFFSETS.map((offset, i) => ({ offset, data: results[i].data as Forecast | undefined }))
+  const byOffset = new Map<number, RouteSummary[]>((q.data?.offsets ?? []).map((o) => [o.offset_hours, o.routes]))
+  return STRIP_OFFSETS.map((offset) => ({
+    offset,
+    data: byOffset.has(offset) ? { routes: byOffset.get(offset) as RouteSummary[] } : undefined,
+  }))
 }
 
 /** Traffic-aware delay and congested sections for the departure offset on screen. Non-critical:
  *  failures just mean no traffic detail, never a broken page. */
-export function useTripTraffic(tripId: string | null, offset: number, enabled: boolean) {
+export function useTripTraffic(trip: Trip | undefined, offset: number, enabled: boolean) {
   return useQuery({
-    queryKey: ['traffic', tripId, offset],
-    queryFn: () => getTraffic(tripId as string, offset),
-    enabled: !!tripId && enabled,
+    queryKey: ['traffic', trip?.trip_id, offset],
+    queryFn: () => getTraffic(trip as Trip, offset),
+    enabled: !!trip && enabled,
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
     retry: false,

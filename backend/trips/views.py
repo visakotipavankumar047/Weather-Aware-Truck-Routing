@@ -85,6 +85,28 @@ class TripCheckpointsView(APIView):
         ])
 
 
+def forecast_body(result, offset, trip_id=None):
+    body = {
+        'offset_hours': offset,
+        'recommended_route_id': result['recommended_route_id'],
+        'routes': [
+            {
+                'id': r['id'], 'rank': r['rank'], 'eligible': r['eligible'],
+                'distance_miles': r['distance_miles'], 'duration_minutes': r['duration_minutes'],
+                'risk_summary': r['risk_summary'],
+                'checkpoints': [
+                    {k: c[k] for k in ('sequence', 'distance_miles', 'lat', 'lon', 'eta', 'weather', 'risk', 'reasons')}
+                    for c in r['checkpoints']
+                ],
+            }
+            for r in result['routes']
+        ],
+    }
+    if trip_id is not None:
+        body = {'trip_id': trip_id, **body}
+    return body
+
+
 class TripForecastView(APIView):
     @extend_schema(
         parameters=[OpenApiParameter('offset_hours', int, description='0-48, hours added to every ETA.')],
@@ -97,23 +119,7 @@ class TripForecastView(APIView):
         offset = int(raw)
         trip = _trip(trip_id)
         result = services.forecast(trip, offset)
-        return Response({
-            'trip_id': trip.id,
-            'offset_hours': offset,
-            'recommended_route_id': result['recommended_route_id'],
-            'routes': [
-                {
-                    'id': r['id'], 'rank': r['rank'], 'eligible': r['eligible'],
-                    'distance_miles': r['distance_miles'], 'duration_minutes': r['duration_minutes'],
-                    'risk_summary': r['risk_summary'],
-                    'checkpoints': [
-                        {k: c[k] for k in ('sequence', 'distance_miles', 'lat', 'lon', 'eta', 'weather', 'risk', 'reasons')}
-                        for c in r['checkpoints']
-                    ],
-                }
-                for r in result['routes']
-            ],
-        })
+        return Response(forecast_body(result, offset, trip.id))
 
 
 class TripReanalyzeView(APIView):

@@ -20,11 +20,6 @@ export function ApiStatus() {
         aria-hidden="true"
       />
       {online ? 'Connected' : isPending ? 'Connecting' : 'Backend offline'}
-      {online && data?.persistent === false && (
-        <span className="rounded-[3px] bg-[#fdf6dd] px-1.5 py-0.5 text-[#5c4300]" title="No persistent database is configured: saved trips are lost when the server restarts. Set DATABASE_URL.">
-          trips not saved
-        </span>
-      )}
     </p>
   )
 }

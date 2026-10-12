@@ -89,9 +89,19 @@ def save(trip, result):
     return trip
 
 
+def rescore(routes, load_lb, offset_hours):
+    """Re-score plain route dicts with every ETA shifted by `offset_hours` (a delayed departure).
+    No database access: the caller supplies the checkpoints. Input dicts are not modified."""
+    shifted = [
+        {**r, 'checkpoints': [{**c, 'eta': c['eta'] + timedelta(hours=offset_hours)} for c in r['checkpoints']]}
+        for r in routes
+    ]
+    best = score_routes(shifted, load_lb)
+    return {'routes': shifted, 'recommended_route_id': None if best is None else shifted[best]['id']}
+
+
 def forecast(trip, offset_hours):
-    """Re-score the stored routes with every ETA shifted by `offset_hours` (departure delay).
-    Returns the same shape as `analyze`, tagged with each route's DB id."""
+    """Re-score the stored routes of a trip for a delayed departure."""
     routes = []
     for route in trip.routes.prefetch_related('checkpoints'):
         routes.append({
@@ -99,10 +109,8 @@ def forecast(trip, offset_hours):
             'distance_miles': route.distance_miles,
             'duration_minutes': route.duration_minutes,
             'checkpoints': [
-                {'sequence': c.sequence, 'distance_miles': c.distance_miles, 'lat': c.lat, 'lon': c.lon,
-                 'eta': c.eta + timedelta(hours=offset_hours)}
+                {'sequence': c.sequence, 'distance_miles': c.distance_miles, 'lat': c.lat, 'lon': c.lon, 'eta': c.eta}
                 for c in route.checkpoints.all()
             ],
         })
-    recommended = score_routes(routes, trip.load_weight_lb)
-    return {'routes': routes, 'recommended_route_id': None if recommended is None else routes[recommended]['id']}
+    return rescore(routes, trip.load_weight_lb, offset_hours)

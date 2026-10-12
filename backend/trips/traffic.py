@@ -83,19 +83,17 @@ def match_routes(stored, tomtom):
     return result
 
 
-def trip_traffic(trip, offset_hours=0):
-    """-> {enabled, offset_hours, routes: [{route_id, matched, ...}]}. Cached 5 minutes."""
+def traffic_for_routes(origin, dest, departure_at, offset_hours, routes, cache_key):
+    """origin/dest: (lat, lon); routes: [(route_id, geometry)]. Cached 5 minutes under cache_key."""
     if not settings.TOMTOM_API_KEY:
         return {'enabled': False, 'offset_hours': offset_hours, 'routes': []}
-    key = f'traffic:{trip.pk}:{offset_hours}'
-    hit = cache.get(key)
+    hit = cache.get(cache_key)
     if hit is not None:
         return hit
 
-    depart = trip.departure_at + timedelta(hours=offset_hours)
+    depart = departure_at + timedelta(hours=offset_hours)
     now = timezone.now()
     depart_at = depart if depart > now + timedelta(minutes=2) else None  # past times mean "now"
-    origin, dest = (trip.origin_lat, trip.origin_lon), (trip.destination_lat, trip.destination_lon)
     try:
         data = _fetch(origin, dest, depart_at)
     except ProviderError as e:
@@ -104,16 +102,15 @@ def trip_traffic(trip, offset_hours=0):
         data = _fetch(origin, dest, None)  # departure too far ahead for predictive traffic
     tomtom = parse_routes(data)
 
-    routes = list(trip.routes.all())
-    matches = match_routes([(r.id, r.geometry) for r in routes], tomtom)
+    matches = match_routes(routes, tomtom)
     out = []
-    for r in routes:
-        t = matches[r.id]
+    for route_id, _geometry in routes:
+        t = matches[route_id]
         if t is None:
-            out.append({'route_id': r.id, 'matched': False})
+            out.append({'route_id': route_id, 'matched': False})
             continue
         out.append({
-            'route_id': r.id,
+            'route_id': route_id,
             'matched': True,
             'travel_minutes': round(t['travel_s'] / 60, 1),
             'typical_minutes': round(t['typical_s'] / 60, 1),
@@ -121,5 +118,14 @@ def trip_traffic(trip, offset_hours=0):
             'sections': t['sections'],
         })
     result = {'enabled': True, 'offset_hours': offset_hours, 'routes': out}
-    cache.set(key, result, CACHE_SECONDS)
+    cache.set(cache_key, result, CACHE_SECONDS)
     return result
+
+
+def trip_traffic(trip, offset_hours=0):
+    """Traffic for a stored trip (DB-backed endpoint)."""
+    return traffic_for_routes(
+        (trip.origin_lat, trip.origin_lon), (trip.destination_lat, trip.destination_lon),
+        trip.departure_at, offset_hours, [(r.id, r.geometry) for r in trip.routes.all()],
+        f'traffic:{trip.pk}:{offset_hours}',
+    )
