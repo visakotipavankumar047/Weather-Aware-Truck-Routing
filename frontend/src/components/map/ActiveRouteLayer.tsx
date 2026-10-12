@@ -1,8 +1,9 @@
 import { memo, useMemo } from 'react'
-import { Pane, Polyline, Tooltip } from 'react-leaflet'
+import { Polyline, Tooltip } from 'react-leaflet'
 import type { Route, RouteTraffic } from '../../types/api'
 import { corridorSegments } from '../../utils/geometry'
 import { RISK } from '../../utils/risk'
+import { PANE } from './paneNames'
 
 export const ROUTE_BLUE = '#1b5fd6'
 
@@ -27,7 +28,6 @@ export const ActiveRouteLayer = memo(function ActiveRouteLayer({ route, traffic 
 
   return (
     <>
-      <Pane name="route-halo" style={{ zIndex: 412 }}>
         {segments.map((s) => {
           const r = RISK[s.checkpoint.risk]
           return (
@@ -35,6 +35,7 @@ export const ActiveRouteLayer = memo(function ActiveRouteLayer({ route, traffic 
               key={s.checkpoint.sequence}
               positions={s.points}
               pathOptions={{
+                pane: PANE.halo,
                 color: r.color,
                 weight: 20,
                 opacity: HALO_OPACITY[s.checkpoint.risk],
@@ -48,27 +49,22 @@ export const ActiveRouteLayer = memo(function ActiveRouteLayer({ route, traffic 
             </Polyline>
           )
         })}
-      </Pane>
-      <Pane name="route-casing" style={{ zIndex: 414 }}>
         <Polyline
           positions={route.geometry}
-          pathOptions={{ color: '#ffffff', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round' }}
+          pathOptions={{ pane: PANE.casing, color: '#ffffff', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round' }}
           interactive={false}
         />
-      </Pane>
-      <Pane name="route-core" style={{ zIndex: 416 }}>
         <Polyline
           positions={route.geometry}
-          pathOptions={{ color: ROUTE_BLUE, weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round' }}
+          pathOptions={{ pane: PANE.core, color: ROUTE_BLUE, weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round' }}
           interactive={false}
         />
-      </Pane>
-      <Pane name="route-traffic" style={{ zIndex: 418 }}>
         {sections.map((sec, i) => (
           <Polyline
             key={i}
             positions={sec.points}
             pathOptions={{
+              pane: PANE.sections,
               color: TRAFFIC_COLOR[sec.magnitude] ?? TRAFFIC_COLOR[2],
               weight: 6,
               opacity: 1,
@@ -81,7 +77,6 @@ export const ActiveRouteLayer = memo(function ActiveRouteLayer({ route, traffic 
             </Tooltip>
           </Polyline>
         ))}
-      </Pane>
     </>
   )
 })

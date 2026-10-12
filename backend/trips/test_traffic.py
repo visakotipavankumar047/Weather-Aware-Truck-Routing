@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from unittest.mock import patch
 
-from django.core.cache import cache
+from django.core.cache import caches
 from django.test import SimpleTestCase, TestCase, override_settings
 
 from . import traffic
@@ -44,7 +44,7 @@ class ParseAndMatchTests(SimpleTestCase):
 @override_settings(TOMTOM_API_KEY='k')
 class EndpointTests(TestCase):
     def setUp(self):
-        cache.clear()
+        caches['shared'].clear()
         self.trip = Trip.objects.create(
             origin_label='A', origin_lat=40.0, origin_lon=-105.0, destination_label='B',
             destination_lat=40.0, destination_lon=-104.0, departure_at=datetime(2026, 10, 20, 8, tzinfo=UTC),

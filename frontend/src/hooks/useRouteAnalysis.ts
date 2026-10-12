@@ -87,15 +87,14 @@ export function useForecastStrip(tripId: string | null, version: string) {
     ;(async () => {
       for (const offset of STRIP_OFFSETS) {
         if (cancelled) return
-        try {
-          await qc.prefetchQuery({
-            queryKey: ['forecast', tripId, offset],
-            queryFn: () => getForecast(tripId, offset),
-            staleTime: 5 * 60 * 1000,
-          })
-        } catch {
-          return
-        }
+        const queryKey = ['forecast', tripId, offset]
+        await qc.prefetchQuery({
+          queryKey,
+          queryFn: () => getForecast(tripId, offset),
+          staleTime: 5 * 60 * 1000,
+        })
+        // prefetchQuery never throws; stop the sweep on the first failure instead of retrying 16 times
+        if (qc.getQueryState(queryKey)?.status === 'error') return
       }
     })()
     return () => {

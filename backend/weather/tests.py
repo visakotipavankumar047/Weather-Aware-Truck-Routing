@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from unittest.mock import patch
 
-from django.core.cache import cache
+from django.core.cache import caches
 from django.test import SimpleTestCase
 
 from api.http import ProviderError
@@ -49,20 +49,21 @@ class ProviderTests(SimpleTestCase):
 
 class ServiceTests(SimpleTestCase):
     def setUp(self):
-        cache.clear()
+        caches['shared'].clear()
 
     def test_nearest_hour_matching_and_missing_is_none(self):
-        series = {T: {'wind_mph': 1}}
+        full = {'forecast_time': T.isoformat(), 'wind_mph': 1.0, 'rain_in_hr': 0.0, 'snow_in_hr': 0.0}
+        series = {T: full}
         with patch.object(providers, 'fetch_hourly', return_value=[series]) as f:
             out = services.forecast_at(
                 [(40.001, -105.001)] * 3,
                 [T.replace(minute=20), T.replace(minute=40), T.replace(hour=20)],
             )
-        self.assertEqual(out, [{'wind_mph': 1}, None, None])
+        self.assertEqual(out, [full, None, None])
         f.assert_called_once()  # three identical grid cells -> one upstream request
 
     def test_second_call_hits_cache(self):
-        with patch.object(providers, 'fetch_hourly', return_value=[{T: {}}]) as f:
+        with patch.object(providers, 'fetch_hourly', return_value=[{T: {'forecast_time': 'x', 'wind_mph': 1.0, 'rain_in_hr': 0.0, 'snow_in_hr': 0.0}}]) as f:
             services.forecast_at([(40.0, -105.0)], [T])
             services.forecast_at([(40.0, -105.0)], [T])
         self.assertEqual(f.call_count, 1)

@@ -1,7 +1,7 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useEffect, useMemo, useState } from 'react'
-import { MapContainer, Marker, Pane, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { TRAFFIC_TILE_URL } from '../../services/traffic'
 import type { Route, Trip, TripTraffic } from '../../types/api'
 import { duration } from '../../utils/formatters'
@@ -11,6 +11,8 @@ import { RiskBadge } from '../weather/RiskBadge'
 import { ActiveRouteLayer, ROUTE_BLUE } from './ActiveRouteLayer'
 import { CheckpointLabels } from './CheckpointLabels'
 import { CheckpointMarker } from './CheckpointMarker'
+import { MapPanes } from './MapPanes'
+import { PANE } from './paneNames'
 
 const LETTERS = ['A', 'B', 'C']
 const FRACTIONS = [0.5, 0.38, 0.62, 0.27, 0.73, 0.18, 0.82]
@@ -153,23 +155,21 @@ export function RouteMap({
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           maxZoom={19}
         />
+        <MapPanes />
         {trafficOn && trafficAvailable && (
-          <Pane name="traffic-flow" style={{ zIndex: 350 }}>
-            <TileLayer url={TRAFFIC_TILE_URL} opacity={0.9} maxZoom={19} attribution="Traffic © TomTom" />
-          </Pane>
+          <TileLayer url={TRAFFIC_TILE_URL} pane={PANE.traffic} opacity={0.9} maxZoom={19} attribution="Traffic © TomTom" />
         )}
         <FitBounds routes={routes} tripKey={tripKey} />
         <PanToCheckpoint target={target} />
 
         {/* Fixed panes decide stacking: unselected routes always under the active one. */}
-        <Pane name="alt-routes" style={{ zIndex: 405 }}>
           {ordered
             .filter((r) => r.id !== selectedRouteId)
             .map((r) => (
               <Polyline
                 key={`${r.id}-casing`}
                 positions={r.geometry}
-                pathOptions={{ color: '#ffffff', weight: 10, opacity: 1, lineCap: 'round' }}
+                pathOptions={{ pane: PANE.alt, color: '#ffffff', weight: 10, opacity: 1, lineCap: 'round' }}
                 interactive={false}
               />
             ))}
@@ -179,13 +179,12 @@ export function RouteMap({
               <Polyline
                 key={`${r.id}-line`}
                 positions={r.geometry}
-                pathOptions={{ color: '#7b8798', weight: 6, opacity: 1, lineCap: 'round' }}
+                pathOptions={{ pane: PANE.alt, color: '#7b8798', weight: 6, opacity: 1, lineCap: 'round' }}
                 eventHandlers={{ click: () => onSelectRoute(r.id) }}
               >
                 <Tooltip sticky>Route {LETTERS[Math.min(r.rank - 1, 2)]}: click to select</Tooltip>
               </Polyline>
             ))}
-        </Pane>
 
         {selected && (
           <ActiveRouteLayer

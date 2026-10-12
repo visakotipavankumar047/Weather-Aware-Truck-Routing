@@ -102,7 +102,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
 def _database():
-    url = os.environ.get('DATABASE_URL', '')
+    # Vercel's Postgres/Neon integrations inject POSTGRES_URL; DATABASE_URL wins when both exist.
+    url = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL') or ''
     if not url:
         # Serverless file systems are read-only except /tmp, and /tmp is wiped between instances:
         # fine for a demo, but set DATABASE_URL (Postgres) for trips that must persist.
@@ -116,6 +117,8 @@ def _database():
         'PASSWORD': unquote(u.password or ''),
         'HOST': u.hostname or '',
         'PORT': u.port or '',
+        # poolers (PgBouncer, Neon) do not support server-side cursors
+        'DISABLE_SERVER_SIDE_CURSORS': True,
     }
     sslmode = parse_qs(u.query).get('sslmode', [''])[0]
     if sslmode:
@@ -177,12 +180,24 @@ MAILERS = {
 CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS')
 CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
 
-# Cache: Redis when REDIS_URL is set, otherwise per-process memory.
+# Caches. `default` (rate-limit counters) is per process. `shared` holds provider responses
+# (geocoding, forecasts, traffic) and must be visible to every serverless instance, otherwise each
+# cold instance re-calls the providers and quickly hits their rate limits.
+HAS_SHARED_DB = bool(os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL'))
 if os.environ.get('REDIS_URL'):
-    CACHES = {'default': {'BACKEND': 'django_redis.cache.RedisCache',
-                          'LOCATION': os.environ['REDIS_URL']}}
+    _shared = {'BACKEND': 'django_redis.cache.RedisCache', 'LOCATION': os.environ['REDIS_URL']}
+elif HAS_SHARED_DB:
+    _shared = {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'wa_cache',
+        'OPTIONS': {'MAX_ENTRIES': 20000, 'CULL_FREQUENCY': 4},
+    }
 else:
-    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+    _shared = {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'shared'}
+CACHES = {
+    'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'},
+    'shared': _shared,
+}
 
 # DRF: JSON API, no session auth (so no CSRF on POST), anonymous throttling.
 REST_FRAMEWORK = {
@@ -210,3 +225,4 @@ NOMINATIM_USER_AGENT = os.environ.get('NOMINATIM_USER_AGENT', 'WeatherAwareTruck
 OPEN_METEO_BASE_URL = os.environ.get('OPEN_METEO_BASE_URL', 'https://api.open-meteo.com/v1/forecast')
 TOMTOM_API_KEY = os.environ.get('TOMTOM_API_KEY', '')  # optional: enables the live traffic layer
 TOMTOM_BASE_URL = os.environ.get('TOMTOM_BASE_URL', 'https://api.tomtom.com')
+OPEN_METEO_API_KEY = os.environ.get('OPEN_METEO_API_KEY', '')  # optional commercial key

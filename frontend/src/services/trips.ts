@@ -11,7 +11,8 @@ export const reanalyzeTrip = (id: string) =>
 export const getForecast = (id: string, offsetHours: number) =>
   api<Forecast>(`/trips/${id}/forecast/?offset_hours=${offsetHours}`, { timeoutMs: 30000 })
 
-export const health = () => api<{ status: string }>('/health/', { timeoutMs: 5000 })
+export const health = () =>
+  api<{ status: string; database: string; persistent: boolean }>('/health/', { timeoutMs: 5000 })
 
 /** Rebuild a full trip from the database (used when reopening a saved trip). */
 export async function fetchTrip(id: string): Promise<Trip> {

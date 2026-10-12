@@ -35,7 +35,16 @@ One deployment serves both: Vercel builds the React app to static files and runs
 
 ## The database (important)
 
-A serverless function cannot keep a file database. Without `DATABASE_URL` the app falls back to SQLite in `/tmp`, which is wiped whenever Vercel starts a new instance: analysis works, but saved trips can disappear between requests. For trips that must persist, create a Postgres database (Neon or Supabase, both available in the Vercel Marketplace) and set `DATABASE_URL`. Tables are created automatically on the first request after each deploy.
+A serverless function has no persistent disk, so **the app needs a Postgres database** to keep trips. Without one it falls back to SQLite in `/tmp`, which is wiped whenever Vercel starts another instance: you would see saved trips return 404 and the sidebar shows a "trips not saved" warning.
+
+Quickest setup:
+
+1. In the Vercel project open **Storage** (or Marketplace), add **Neon** (or Supabase) Postgres and connect it to this project.
+2. The integration injects `DATABASE_URL` / `POSTGRES_URL` automatically. The app reads either one, including `?sslmode=require`.
+3. Redeploy. On the first request after each deploy the function creates the tables and the shared cache table; nothing to run by hand.
+4. Check `https://<your-app>.vercel.app/api/health/`: it should show `"database": "postgresql"` and `"persistent": true`.
+
+The same database also backs a **shared cache** for geocoding, forecasts and traffic. On serverless each request may land on a new instance with an empty memory cache; without a shared cache every instance would call Open-Meteo again, and the provider's per-IP limit (HTTP 429, reported as 503) would break the forecast slider. Optionally set `OPEN_METEO_API_KEY` (Open-Meteo customer plan) if you expect heavy traffic.
 
 ## Limits to know
 

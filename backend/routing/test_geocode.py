@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from django.core.cache import cache
+from django.core.cache import caches
 from django.test import SimpleTestCase, override_settings
 
 from api.http import ProviderError
@@ -14,7 +14,7 @@ NOM = [{'display_name': 'Denver, Colorado', 'lat': '39.74', 'lon': '-104.99'}]
 @override_settings(OPENROUTESERVICE_API_KEY='k', NOMINATIM_USER_AGENT='App/1.0 (contact: placeholder@example.com)')
 class GeocodeTests(SimpleTestCase):
     def setUp(self):
-        cache.clear()
+        caches['shared'].clear()
 
     def test_ors_is_used_parsed_and_cached(self):
         with patch.object(providers, 'request_json', return_value=ORS) as rj:

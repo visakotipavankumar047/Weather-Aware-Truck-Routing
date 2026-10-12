@@ -3,13 +3,14 @@ import hashlib
 from concurrent.futures import ThreadPoolExecutor
 
 from django.conf import settings
-from django.core.cache import cache
+from django.core.cache import caches
 from rest_framework.exceptions import ValidationError
 
 from api.http import ProviderError, request_json
 from routing.geometry import haversine_miles, mean_gap_miles
 
 METERS_PER_MILE = 1609.344
+cache = caches['shared']
 ALT_ROUTES_WARNING = (
     'The routing provider returned no alternatives for this trip '
     '(OpenRouteService limits alternative routes to shorter trips); showing a single route.'

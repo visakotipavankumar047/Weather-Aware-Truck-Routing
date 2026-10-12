@@ -26,6 +26,7 @@ def fetch_hourly(points):
             'timezone': 'UTC',
             'past_days': 1,
             'forecast_days': 16,
+            **({'apikey': settings.OPEN_METEO_API_KEY} if settings.OPEN_METEO_API_KEY else {}),
         },
     )
     results = [data] if isinstance(data, dict) else data

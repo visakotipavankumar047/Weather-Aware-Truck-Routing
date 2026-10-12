@@ -6,7 +6,7 @@ never drawn on a route that takes a different road."""
 from datetime import timedelta
 
 from django.conf import settings
-from django.core.cache import cache
+from django.core.cache import caches
 from django.utils import timezone
 
 from api.http import ProviderError, request_json
@@ -14,6 +14,7 @@ from routing.geometry import mean_gap_miles
 
 MATCH_MILES = 0.6  # mean distance between the two polylines for them to be "the same route"
 CACHE_SECONDS = 5 * 60
+cache = caches['shared']
 
 
 def _fetch(origin, destination, depart_at):

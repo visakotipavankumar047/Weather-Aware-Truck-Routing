@@ -21,5 +21,6 @@ app = get_wsgi_application()
 # fallback) works without a manual step. It is a no-op when the schema is already current.
 try:
     call_command('migrate', interactive=False, verbosity=0)
+    call_command('createcachetable', verbosity=0)  # no-op unless the shared cache is DB-backed
 except Exception:  # never take the whole API down because the migrate check failed
     logging.getLogger(__name__).exception('Automatic migrate failed')

@@ -28,9 +28,9 @@ def request_json(method, url, *, provider, **kwargs):
             raise ProviderError(f'{provider} timed out.', 504)
         except httpx.HTTPError:
             raise ProviderError(f'{provider} is unreachable.', 502)
-        if resp.status_code not in (500, 502, 503, 504) or attempt:
+        if resp.status_code not in (429, 500, 502, 503, 504) or attempt:
             break
-        time.sleep(0.8)
+        time.sleep(1.5 if resp.status_code == 429 else 0.8)
     if resp.status_code == 429:
         raise ProviderError(f'{provider} rate limit reached; retry later.', 503, upstream=429)
     if resp.status_code in (401, 403):

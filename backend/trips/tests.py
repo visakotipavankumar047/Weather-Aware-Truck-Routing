@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from unittest.mock import patch
 
-from django.core.cache import cache
+from django.core.cache import caches
 from django.test import TestCase, override_settings
 
 from api.http import ProviderError
@@ -41,7 +41,7 @@ BODY = {
 @override_settings(OPENROUTESERVICE_API_KEY='k')
 class TripApiTests(TestCase):
     def setUp(self):
-        cache.clear()
+        caches['shared'].clear()
 
     def post(self, **over):
         return self.client.post('/api/trips/', {**BODY, **over}, content_type='application/json')
@@ -53,7 +53,9 @@ class TripApiTests(TestCase):
             return self.post()
 
     def test_health(self):
-        self.assertEqual(self.client.get('/api/health/').json(), {'status': 'ok'})
+        d = self.client.get('/api/health/').json()
+        self.assertEqual(d['status'], 'ok')
+        self.assertTrue(d['persistent'])  # local SQLite file counts as persistent
 
     def test_validation(self):
         for over in [{'load_weight_lb': 0}, {'checkpoint_interval_miles': 30}, {'origin': ''},
