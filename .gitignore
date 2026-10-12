@@ -1,0 +1,21 @@
+# Secrets and local data: never commit
+.env
+**/.env
+*.sqlite3
+
+# Dependencies and build output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+backend/.venv/
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+.vercel

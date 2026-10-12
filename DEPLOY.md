@@ -63,3 +63,9 @@ cd ../backend; .venv\Scripts\python.exe manage.py test
 ## Troubleshooting the build
 
 **"Failed to read Django application settings ... No module named django"**: Vercel found `backend/manage.py` and tried to import Django before the Python packages were installed. The repo avoids this three ways: `"framework": null` in `vercel.json`, `backend/manage.py` listed in `.vercelignore`, and the install step also runs `pip install -r requirements.txt`. If it still appears, open the failing deployment, copy the lines above that error (the dependency install output) and check that the Python version is 3.12.
+
+## Repository hygiene (do this before pushing)
+
+- `.gitignore` now excludes `.env`, `*.sqlite3`, `node_modules`, `dist` and virtualenvs. These were previously committed (including `backend/.env` with API keys and about 8,000 `node_modules` files); they are removed from the git index but stay on your disk.
+- **Rotate the keys that were committed** (OpenRouteService, TomTom): anyone with access to the repository history can read them. Put the new values only in the Vercel Environment Variables.
+- The build command deletes `backend/manage.py` inside the Vercel build container only (your repository keeps it). Vercel otherwise tries to auto-build Django from `manage.py` before the packages are available, which fails with "No module named django".
