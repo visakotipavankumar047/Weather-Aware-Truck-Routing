@@ -6,7 +6,7 @@ One Vercel project, one deployment, one domain. It uses **Vercel Services**: the
 {
   "services": {
     "web": { "root": "frontend/" },
-    "api": { "root": "backend/" }
+    "api": { "root": "backend/", "entrypoint": "config.wsgi:application" }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": { "service": "api" } },
@@ -16,6 +16,8 @@ One Vercel project, one deployment, one domain. It uses **Vercel Services**: the
 ```
 
 `/api/*` goes to Django (which receives the original `/api/...` path, matching `config/urls.py`); everything else is the React app.
+
+The `entrypoint` is required for Python services: Vercel detects Django but must be told which WSGI callable to serve (`config.wsgi:application` = the `application` variable in `backend/config/wsgi.py`).
 
 ## What Vercel does with each service
 
@@ -66,6 +68,7 @@ Forecast and geocoding responses are cached in memory per instance. If a provide
 
 ## Troubleshooting
 
+- **`Service "api" detected framework "django" ... must specify an "entrypoint"`:** the `api` service in `vercel.json` needs `"entrypoint": "config.wsgi:application"` (already set).
 - **Build says it cannot find a service or entrypoint:** confirm `backend/manage.py` is committed (it must not be in `.vercelignore`) and `WSGI_APPLICATION` exists in `backend/config/settings.py`.
 - **"No module named ..." while reading Django settings:** a package is missing from `backend/requirements.txt`.
 - **404 on `/api/...`:** check the deployment's *Services* tab shows both `web` and `api`, and that `vercel.json` is at the repository root.
