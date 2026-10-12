@@ -1,0 +1,5 @@
+extend-exclude = ["migrations", ".venv"]
+
+[lint]
+# Django/DRF idioms (Meta.fields lists, error-message dicts) trip RUF012; the rest are style-only.
+extend-ignore = ["RUF012", "RUF007", "C408", "SIM117"]

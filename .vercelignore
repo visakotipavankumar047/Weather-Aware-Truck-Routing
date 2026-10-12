@@ -1,0 +1,11 @@
+# Never upload secrets, local databases, virtualenvs or build output.
+backend/.env
+backend/.venv
+backend/db.sqlite3
+backend/.ruff_cache
+**/__pycache__
+**/*.pyc
+frontend/node_modules
+frontend/dist
+frontend/.env
+.vscode
