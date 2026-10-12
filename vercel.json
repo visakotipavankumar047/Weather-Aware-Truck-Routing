@@ -1,23 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
-  "installCommand": "npm --prefix frontend ci && (python3 -m pip install -q --break-system-packages -r requirements.txt || python3 -m pip install -q -r requirements.txt || true)",
-  "buildCommand": "npm --prefix frontend run build && rm -f backend/manage.py",
-  "outputDirectory": "frontend/dist",
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60,
-      "includeFiles": "backend/**"
+  "services": {
+    "web": {
+      "root": "frontend/"
+    },
+    "api": {
+      "root": "backend/"
     }
   },
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/(.*)", "destination": { "service": "api" } },
+    { "source": "/(.*)", "destination": { "service": "web" } }
   ]
 }

@@ -1,0 +1,12 @@
+-r requirements.txt
+
+# Optional: shared cache when REDIS_URL is set
+django-redis
+redis
+
+# Testing and code quality
+pytest
+pytest-django
+pytest-cov
+responses
+ruff

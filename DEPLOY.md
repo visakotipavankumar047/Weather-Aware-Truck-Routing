@@ -1,57 +1,75 @@
 # Deploying to Vercel (frontend and backend in one project)
 
-One deployment serves both: Vercel builds the React app to static files and runs Django as a single Python function. The frontend calls `/api/...` on the same domain, so there is no CORS setup and nothing to deploy twice.
+One Vercel project, one deployment, one domain. It uses **Vercel Services**: the React app (`frontend/`) and the Django API (`backend/`) are built as two services and routed by `vercel.json`, so nothing is deployed twice and there is no CORS setup.
 
-## Files that make this work
+```json
+{
+  "services": {
+    "web": { "root": "frontend/" },
+    "api": { "root": "backend/" }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "api" } },
+    { "source": "/(.*)", "destination": { "service": "web" } }
+  ]
+}
+```
 
-| File | Purpose |
-|---|---|
-| `vercel.json` | Builds `frontend/`, publishes `frontend/dist`, sends `/api/*` to the Django function, sends every other path to `index.html` (single-page app), gives the function 60 s for slow provider calls. |
-| `api/index.py` | The Vercel function. Adds `backend/` to the path, exposes Django's WSGI `app`, and runs `migrate` once per cold start. |
-| `requirements.txt` | Runtime-only Python packages for the function. (`backend/requirements.txt` still holds dev/test tools.) |
-| `.vercelignore` | Keeps `.env`, `.venv`, local databases and `node_modules` out of the upload. |
-| `backend/config/settings.py` | Allows Vercel hostnames, uses `/tmp` SQLite when no `DATABASE_URL`, reads `sslmode` from the database URL. |
+`/api/*` goes to Django (which receives the original `/api/...` path, matching `config/urls.py`); everything else is the React app.
+
+## What Vercel does with each service
+
+| Service | Detected as | How it is built |
+|---|---|---|
+| `web` (`frontend/`) | Vite | `npm install`, `npm run build`, serves `dist/` |
+| `api` (`backend/`) | Django | installs `backend/requirements.txt`, runs `manage.py` to read `WSGI_APPLICATION` (`config.wsgi.application`), and serves it as one function |
+
+`backend/requirements.txt` contains only runtime packages. Development and test tools are in `backend/requirements-dev.txt` (`pip install -r requirements-dev.txt` locally).
 
 ## Steps
 
-1. Push the repository to GitHub (never commit `backend/.env`).
-2. In Vercel: **Add New Project**, import the repo, leave **Root Directory** as the repository root. Vercel reads everything else from `vercel.json`; do not override the build settings.
-3. Add these **Environment Variables** (Production and Preview):
+1. Push the repository to GitHub (the `.gitignore` keeps `.env`, `node_modules`, `dist` and SQLite files out).
+2. In Vercel: **Add New Project**, import the repo, leave **Root Directory** at the repository root. Vercel reads `vercel.json`; do not override build settings.
+3. Add **Environment Variables** (Production and Preview):
 
 | Variable | Value |
 |---|---|
-| `DJANGO_SECRET_KEY` | a long random string (required) |
+| `DJANGO_SECRET_KEY` | a long random string |
 | `DJANGO_DEBUG` | `False` |
 | `OPENROUTESERVICE_API_KEY` | your OpenRouteService key (required) |
 | `OPENROUTESERVICE_BASE_URL` | `https://api.openrouteservice.org` |
 | `TOMTOM_API_KEY` | your TomTom key (live traffic, and extra route alternatives) |
-| `DATABASE_URL` | Postgres URL, e.g. `postgres://user:pass@host/db?sslmode=require` (see below) |
 | `NOMINATIM_USER_AGENT` | optional fallback geocoder contact, e.g. `Weather-Aware/1.0 (contact: you@yourdomain.com)` |
-| `DJANGO_ALLOWED_HOSTS` | only if you add a custom domain, e.g. `routes.example.com` |
+| `DJANGO_ALLOWED_HOSTS` | only for a custom domain, e.g. `routes.example.com` |
+| `DATABASE_URL` | optional Postgres URL; **not needed** (see below) |
 
-   `OPEN_METEO_BASE_URL` and `EXTERNAL_API_TIMEOUT_SECONDS` have working defaults.
-
-4. Click **Deploy**. Open the URL; the status in the sidebar should read "Connected". `https://<your-app>.vercel.app/api/docs/` shows the API documentation.
+4. Deploy, then open the site. The sidebar should say "Connected". `https://<your-app>.vercel.app/api/docs/` shows the API docs.
 
 ## The database (SQLite is fine)
 
-You do not need Neon or any hosted database. Without `DATABASE_URL` the backend uses Django's built-in SQLite, stored in `/tmp` on Vercel. That file is temporary and each serverless instance has its own, so the app is built not to depend on it:
+You do not need Neon or any hosted database. Without `DATABASE_URL` the backend uses Django's built-in SQLite, stored in `/tmp` on Vercel. That file is temporary and every serverless instance has its own, so the app is built not to depend on it:
 
 - `POST /api/trips/` analyses the trip and returns everything (routes, geometry, checkpoints, weather). The browser keeps that copy in `localStorage`, so saved trips reopen from the browser even after the server restarts.
-- The forecast slider, the heat strip and traffic use **stateless endpoints**: `POST /api/forecast/`, `POST /api/forecast/sweep/` and `POST /api/traffic/routes/`. The request carries the routes, so any server instance can answer and a missing server-side trip is never a problem.
+- The forecast slider, heat strip and traffic use **stateless endpoints** (`POST /api/forecast/`, `POST /api/forecast/sweep/`, `POST /api/traffic/routes/`). The request carries the routes, so any instance can answer.
 - "Refresh forecast" runs a new analysis from the stored inputs and replaces the saved entry.
-- The server still writes each analysis to SQLite (useful locally and in `/admin/`), and the old `GET /api/trips/{id}/...` routes work whenever the same instance still has it. The app does not rely on them.
+- The server still writes each analysis to SQLite (useful locally and in `/admin/`), and `config/wsgi.py` creates the tables when an instance starts.
 
-Saved trips are therefore **per browser**: another browser or device will not see them. If you later want trips shared across devices, set `DATABASE_URL` to a Postgres database; the code already supports it and the stateless endpoints keep working.
+Saved trips are therefore **per browser**. For trips shared across devices, set `DATABASE_URL` to Postgres; the code already supports it (`?sslmode=require` included) and also switches the shared cache to the database.
 
-Forecast and geocoding responses are cached in memory per instance. If a provider answers 429 under heavy use, set `OPEN_METEO_API_KEY` or `DATABASE_URL` (which also enables a shared cache).
+Forecast and geocoding responses are cached in memory per instance. If a provider answers 429 under heavy use, set `OPEN_METEO_API_KEY` or `DATABASE_URL`.
 
 ## Limits to know
 
-- **Function time:** analysis takes 5-15 s. `vercel.json` requests 60 s, which is the Hobby plan maximum. Pro allows more.
-- **Django admin:** `/admin/` is not exposed in this setup (its static files are not served). Inspect data with your Postgres provider's console.
-- **Cache and rate limits:** the in-memory cache is per instance. Set `REDIS_URL` (and add `django-redis` to `requirements.txt`) if you want a shared cache.
-- **Provider quotas:** OpenRouteService, Open-Meteo and TomTom free tiers have daily limits that apply to the whole deployment.
+- **Django admin:** `/admin/` works but has no styling on Vercel (static files are not collected).
+- **Provider quotas:** OpenRouteService, Open-Meteo and TomTom free tiers have daily limits shared by the whole deployment.
+- **Function time:** analysis takes about 5-15 s; Vercel Functions on Fluid compute allow far longer.
+
+## Troubleshooting
+
+- **Build says it cannot find a service or entrypoint:** confirm `backend/manage.py` is committed (it must not be in `.vercelignore`) and `WSGI_APPLICATION` exists in `backend/config/settings.py`.
+- **"No module named ..." while reading Django settings:** a package is missing from `backend/requirements.txt`.
+- **404 on `/api/...`:** check the deployment's *Services* tab shows both `web` and `api`, and that `vercel.json` is at the repository root.
+- **Secrets:** `backend/.env` was committed earlier. Rotate the OpenRouteService and TomTom keys and keep new values only in Vercel.
 
 ## Verify locally before deploying
 
@@ -59,13 +77,3 @@ Forecast and geocoding responses are cached in memory per instance. If a provide
 cd frontend; npm ci; npm run build      # must succeed
 cd ../backend; .venv\Scripts\python.exe manage.py test
 ```
-
-## Troubleshooting the build
-
-**"Failed to read Django application settings ... No module named django"**: Vercel found `backend/manage.py` and tried to import Django before the Python packages were installed. The repo avoids this three ways: `"framework": null` in `vercel.json`, `backend/manage.py` listed in `.vercelignore`, and the install step also runs `pip install -r requirements.txt`. If it still appears, open the failing deployment, copy the lines above that error (the dependency install output) and check that the Python version is 3.12.
-
-## Repository hygiene (do this before pushing)
-
-- `.gitignore` now excludes `.env`, `*.sqlite3`, `node_modules`, `dist` and virtualenvs. These were previously committed (including `backend/.env` with API keys and about 8,000 `node_modules` files); they are removed from the git index but stay on your disk.
-- **Rotate the keys that were committed** (OpenRouteService, TomTom): anyone with access to the repository history can read them. Put the new values only in the Vercel Environment Variables.
-- The build command deletes `backend/manage.py` inside the Vercel build container only (your repository keeps it). Vercel otherwise tries to auto-build Django from `manage.py` before the packages are available, which fails with "No module named django".

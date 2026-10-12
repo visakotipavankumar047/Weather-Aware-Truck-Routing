@@ -1,9 +1,0 @@
-# Runtime dependencies for the Vercel Python function (api/index.py).
-# Dev and test tools stay in backend/requirements.txt.
-Django>=5.2,<7
-djangorestframework
-django-cors-headers
-drf-spectacular
-httpx
-python-dotenv
-psycopg[binary]

@@ -1,37 +1,9 @@
-
-# Django backend and REST APIs
-Django
+# Runtime dependencies (what Vercel installs for the backend service).
+# Development and test tools live in requirements-dev.txt.
+Django>=5.2,<7
 djangorestframework
 django-cors-headers
-
-# HTTP clients for routing, geocoding and weather APIs
-httpx
-requests
-openrouteservice
-
-# Environment configuration
-python-dotenv
-
-# Geospatial calculations and route checkpoint sampling
-shapely
-polyline
-
-# PostgreSQL database support
-psycopg[binary]
-
-# Caching and production server
-django-redis
-redis
-gunicorn
-
-# API schema and documentation
 drf-spectacular
-
-# Testing
-pytest
-pytest-django
-pytest-cov
-responses
-
-# Code quality and formatting
-ruff
+httpx
+python-dotenv
+psycopg[binary]
