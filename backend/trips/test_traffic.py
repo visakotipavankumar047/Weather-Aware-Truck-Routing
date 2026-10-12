@@ -5,7 +5,7 @@ from django.core.cache import caches
 from django.test import SimpleTestCase, TestCase, override_settings
 
 from . import traffic
-from .models import Route, Trip
+from .models import Place, Route, Trip
 
 LINE = [(40.0, -105.0 + i * 0.1) for i in range(11)]  # ~8.5 mi east-west line
 FAR = [(41.0, -105.0 + i * 0.1) for i in range(11)]   # ~69 mi north of LINE
@@ -46,8 +46,8 @@ class EndpointTests(TestCase):
     def setUp(self):
         caches['shared'].clear()
         self.trip = Trip.objects.create(
-            origin_label='A', origin_lat=40.0, origin_lon=-105.0, destination_label='B',
-            destination_lat=40.0, destination_lon=-104.0, departure_at=datetime(2026, 10, 20, 8, tzinfo=UTC),
+            origin=Place.objects.create(label='A', lat=40.0, lon=-105.0),
+            destination=Place.objects.create(label='B', lat=40.0, lon=-104.0), departure_at=datetime(2026, 10, 20, 8, tzinfo=UTC),
             load_weight_lb=30000, checkpoint_interval_miles=25,
         )
         Route.objects.create(trip=self.trip, rank=1, eligible=True, distance_miles=8, duration_minutes=15,

@@ -55,6 +55,7 @@ class TripApiTests(TestCase):
     def test_health(self):
         d = self.client.get('/api/health/').json()
         self.assertEqual(d['status'], 'ok')
+        self.assertTrue(d['connected'])
         self.assertTrue(d['persistent'])  # local SQLite file counts as persistent
 
     def test_validation(self):

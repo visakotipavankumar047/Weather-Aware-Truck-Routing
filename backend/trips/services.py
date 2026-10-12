@@ -77,7 +77,7 @@ def save(trip, result):
         Checkpoint.objects.bulk_create(
             Checkpoint(
                 route=route, sequence=n, distance_miles=c['distance_miles'], lat=c['lat'], lon=c['lon'],
-                eta=c['eta'], weather=c['weather'], risk=c['risk'], reasons=c['reasons'],
+                eta=c['eta'], weather=c['weather'], risk_id=c['risk'], reasons=c['reasons'],
             )
             for n, c in enumerate(r['checkpoints'])
         )

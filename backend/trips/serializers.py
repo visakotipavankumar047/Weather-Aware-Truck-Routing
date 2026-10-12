@@ -81,6 +81,12 @@ class TripSerializer(serializers.ModelSerializer):
     """Trip + recommendation + per-route summaries (no geometry/checkpoints)."""
     trip_id = serializers.UUIDField(source='id')
     recommended_route_id = serializers.IntegerField(allow_null=True)
+    origin_label = serializers.CharField(source='origin.label')
+    origin_lat = serializers.FloatField(source='origin.lat')
+    origin_lon = serializers.FloatField(source='origin.lon')
+    destination_label = serializers.CharField(source='destination.label')
+    destination_lat = serializers.FloatField(source='destination.lat')
+    destination_lon = serializers.FloatField(source='destination.lon')
     routes = RouteSummarySerializer(many=True)
 
     class Meta:

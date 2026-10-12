@@ -125,7 +125,7 @@ def traffic_for_routes(origin, dest, departure_at, offset_hours, routes, cache_k
 def trip_traffic(trip, offset_hours=0):
     """Traffic for a stored trip (DB-backed endpoint)."""
     return traffic_for_routes(
-        (trip.origin_lat, trip.origin_lon), (trip.destination_lat, trip.destination_lon),
+        (trip.origin.lat, trip.origin.lon), (trip.destination.lat, trip.destination.lon),
         trip.departure_at, offset_hours, [(r.id, r.geometry) for r in trip.routes.all()],
         f'traffic:{trip.pk}:{offset_hours}',
     )

@@ -1,5 +1,5 @@
 from django.contrib import admin
 
-from .models import Checkpoint, Route, Trip
+from .models import Checkpoint, Place, RiskLevel, Route, Trip
 
-admin.site.register([Trip, Route, Checkpoint])
+admin.site.register([Trip, Route, Checkpoint, Place, RiskLevel])

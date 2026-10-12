@@ -3,14 +3,31 @@ import uuid
 from django.db import models
 
 
+class Place(models.Model):
+    """A named coordinate; trip origins and destinations point here instead of repeating label/lat/lon."""
+    label = models.CharField(max_length=500)
+    lat = models.FloatField()
+    lon = models.FloatField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['label', 'lat', 'lon'], name='unique_place')]
+
+    def __str__(self):
+        return self.label
+
+
+class RiskLevel(models.Model):
+    """Lookup of risk codes (LOW..NO_TRAVEL, UNKNOWN); checkpoints reference it by code."""
+    code = models.CharField(max_length=10, primary_key=True)
+
+    def __str__(self):
+        return self.code
+
+
 class Trip(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    origin_label = models.CharField(max_length=500)
-    origin_lat = models.FloatField()
-    origin_lon = models.FloatField()
-    destination_label = models.CharField(max_length=500)
-    destination_lat = models.FloatField()
-    destination_lon = models.FloatField()
+    origin = models.ForeignKey(Place, on_delete=models.PROTECT, related_name='+')
+    destination = models.ForeignKey(Place, on_delete=models.PROTECT, related_name='+')
     departure_at = models.DateTimeField()
     load_weight_lb = models.FloatField()
     checkpoint_interval_miles = models.PositiveSmallIntegerField()
@@ -22,7 +39,7 @@ class Trip(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f'{self.origin_label} -> {self.destination_label}'
+        return f'{self.origin} -> {self.destination}'
 
 
 class Route(models.Model):
@@ -47,7 +64,7 @@ class Checkpoint(models.Model):
     lon = models.FloatField()
     eta = models.DateTimeField()  # at forecast offset 0
     weather = models.JSONField(null=True)  # None = no forecast available
-    risk = models.CharField(max_length=10)  # LOW..NO_TRAVEL or UNKNOWN
+    risk = models.ForeignKey(RiskLevel, on_delete=models.PROTECT, related_name='+')
     reasons = models.JSONField(default=list)
 
     class Meta:

@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from routing.providers import resolve_place
 
 from . import services, traffic
-from .models import Trip
+from .models import Place, Trip
 from .serializers import (
     CheckpointSerializer,
     RouteGeometrySerializer,
@@ -18,13 +18,13 @@ from .serializers import (
 
 
 def _trip(trip_id):
-    return get_object_or_404(Trip.objects.prefetch_related('routes__checkpoints'), pk=trip_id)
+    return get_object_or_404(Trip.objects.select_related('origin', 'destination').prefetch_related('routes__checkpoints'), pk=trip_id)
 
 
 def _run(trip):
     result = services.analyze(
-        {'lat': trip.origin_lat, 'lon': trip.origin_lon},
-        {'lat': trip.destination_lat, 'lon': trip.destination_lon},
+        {'lat': trip.origin.lat, 'lon': trip.origin.lon},
+        {'lat': trip.destination.lat, 'lon': trip.destination.lon},
         trip.departure_at, trip.load_weight_lb, trip.checkpoint_interval_miles,
     )
     services.save(trip, result)
@@ -39,8 +39,8 @@ class TripCreateView(APIView):
         d = s.validated_data
         o, dest = resolve_place(d['origin'], 'origin'), resolve_place(d['destination'], 'destination')
         trip = Trip.objects.create(
-            origin_label=o['label'], origin_lat=o['lat'], origin_lon=o['lon'],
-            destination_label=dest['label'], destination_lat=dest['lat'], destination_lon=dest['lon'],
+            origin=Place.objects.get_or_create(**{k: o[k] for k in ('label', 'lat', 'lon')})[0],
+            destination=Place.objects.get_or_create(**{k: dest[k] for k in ('label', 'lat', 'lon')})[0],
             departure_at=d['departure_at'], load_weight_lb=d['load_weight_lb'],
             checkpoint_interval_miles=d['checkpoint_interval_miles'],
         )
