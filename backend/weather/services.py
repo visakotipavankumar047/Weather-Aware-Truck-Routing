@@ -32,15 +32,19 @@ def forecast_at(points, times):
     as UNKNOWN. Series are cached 30 min per ~1 km grid cell and deduplicated, so
     a forecast-slider sweep over one trip costs one Open-Meteo call per cache window."""
     keys = [(round(lat, 2), round(lon, 2)) for lat, lon in points]
-    series = {k: _expand(cache.get(f'wx:{k[0]}:{k[1]}')) for k in set(keys)}
+    hit = cache.get_many([f'wx:{k[0]}:{k[1]}' for k in set(keys)])  # one query, not one per point
+    series = {k: _expand(hit.get(f'wx:{k[0]}:{k[1]}')) for k in set(keys)}
     missing = [k for k, v in series.items() if v is None]
     chunks = [missing[i:i + CHUNK] for i in range(0, len(missing), CHUNK)]
     # Long (intercontinental) routes need many points; fetch the chunks concurrently.
+    fresh = {}
     with ThreadPoolExecutor(max_workers=min(4, max(1, len(chunks)))) as pool:
         for chunk, result in zip(chunks, pool.map(providers.fetch_hourly, chunks)):
             for k, s in zip(chunk, result):
                 series[k] = s  # full dicts straight from the provider
-                cache.set(f'wx:{k[0]}:{k[1]}', _compact(s), TTL)
+                fresh[f'wx:{k[0]}:{k[1]}'] = _compact(s)
+    if fresh:
+        cache.set_many(fresh, TTL)
 
     out = []
     for k, t in zip(keys, times):

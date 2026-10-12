@@ -188,7 +188,7 @@ if os.environ.get('REDIS_URL'):
     _shared = {'BACKEND': 'django_redis.cache.RedisCache', 'LOCATION': os.environ['REDIS_URL']}
 elif HAS_SHARED_DB:
     _shared = {
-        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'BACKEND': 'api.cache.SafeDatabaseCache',
         'LOCATION': 'wa_cache',
         'OPTIONS': {'MAX_ENTRIES': 20000, 'CULL_FREQUENCY': 4},
     }

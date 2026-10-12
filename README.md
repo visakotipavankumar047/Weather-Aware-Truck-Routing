@@ -197,17 +197,17 @@ erDiagram
     }
     TRIP {
         uuid id PK
-        fk origin_id
-        fk destination_id
+        bigint origin_id FK
+        bigint destination_id FK
         datetime departure_at
         float load_weight_lb
         int checkpoint_interval_miles
-        fk recommended_route_id
+        bigint recommended_route_id FK
         json warnings
     }
     ROUTE {
         bigint id PK
-        fk trip_id
+        uuid trip_id FK
         int rank
         bool eligible
         float distance_miles
@@ -217,14 +217,14 @@ erDiagram
     }
     CHECKPOINT {
         bigint id PK
-        fk route_id
+        bigint route_id FK
         int sequence
         float distance_miles
         float lat
         float lon
         datetime eta
         json weather
-        fk risk_id
+        string risk_id FK
         json reasons
     }
 ```
